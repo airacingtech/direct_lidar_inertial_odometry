@@ -17,7 +17,7 @@
 
     adaptive: true
 
-    pointcloud/deskew: true
+    pointcloud/deskew: false
     pointcloud/voxelize: true
 
     imu/calibration: true
@@ -27,11 +27,11 @@
                                  0.,  0.,  1. ]
     imu/intrinsics/gyro/bias: [ 0.0, 0.0, 0.0 ]
 
-    extrinsics/baselink2imu/t: [ 0.006253, -0.011775, 0.007645 ] 
+    extrinsics/baselink2imu/t: [ 1.50, 0.63, 1.42 ] 
     extrinsics/baselink2imu/R: [ 1.,  0.,  0.,
                                  0.,  1.,  0.,
                                  0.,  0.,  1. ]
-    extrinsics/baselink2lidar/t: [ 0.,  0.,  0. ]
-    extrinsics/baselink2lidar/R: [ 1.,  0.,  0.,
+    extrinsics/baselink2lidar/t: [ 1.5,  0.,  1.42 ]
+    extrinsics/baselink2lidar/R: [ 0.,  0.,  1.,
                                    0.,  1.,  0.,
-                                   0.,  0.,  1. ]
+                                   -1.,  0.,  0. ]
