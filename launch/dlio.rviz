@@ -38,14 +38,14 @@ Visualization Manager:
     - Class: rviz_common/Group
       Displays:
         - Class: rviz_default_plugins/TF
-          Enabled: false
+          Enabled: true
           Filter (blacklist): ""
           Filter (whitelist): ""
           Frame Timeout: 9999
           Frames:
             All Enabled: true
           Marker Alpha: 1
-          Marker Scale: 5
+          Marker Scale: 2.00
           Name: tf tree
           Show Arrows: true
           Show Axes: true
@@ -170,6 +170,27 @@ Visualization Manager:
       Name: Point Clouds
     - Class: rviz_common/Group
       Displays:
+        - Alpha: 1
+          Buffer Length: 1
+          Class: rviz_default_plugins/Path
+          Color: 0; 255; 0
+          Enabled: true
+          Head Diameter: 0.3
+          Head Length: 0.2
+          Length: 0.3
+          Line Style: Billboards
+          Line Width: 0.5
+          Name: GPS Trajectory
+          Offset: {X: 0, Y: 0, Z: 0}
+          Pose Color: 0; 255; 0
+          Pose Style: None
+          Queue Size: 10
+          Radius: 0.03
+          Shaft Diameter: 0.06
+          Shaft Length: 0.1
+          Topic: /gps/path
+          Unreliable: false
+          Value: true
         - Angle Tolerance: 0.009999999776482582
           Class: rviz_default_plugins/Odometry
           Covariance:
@@ -224,6 +245,7 @@ Visualization Manager:
           Value: false
         - Alpha: 1
           Buffer Length: 1
+          
           Class: rviz_default_plugins/Path
           Color: 255; 209; 0
           Enabled: true
