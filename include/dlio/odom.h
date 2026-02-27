@@ -38,6 +38,10 @@
 #include <pcl/surface/convex_hull.h>
 #include <pcl_conversions/pcl_conversions.h>
 
+// STL
+#include <deque>
+#include <vector>
+
 class dlio::OdomNode: public rclcpp::Node {
 
 public:
@@ -95,6 +99,11 @@ private:
   void computeMetrics();
   void computeSpaciousness();
   void computeDensity();
+  Eigen::Vector3f filterImuMeasurement(std::deque<Eigen::Vector3f>& window,
+                                       const Eigen::Vector3f& sample);
+  static float weightedMedian(const std::vector<float>& values,
+                              const std::vector<double>& weights);
+  static std::vector<double> buildTriangularWeights(size_t window_size);
 
   sensor_msgs::msg::Imu::SharedPtr transformImu(const sensor_msgs::msg::Imu::SharedPtr& imu);
 
@@ -346,6 +355,11 @@ private:
   double imu_calib_time_;
   int imu_buffer_size_;
   Eigen::Matrix3f imu_accel_sm_;
+  bool imu_filter_enable_;
+  int imu_filter_window_size_;
+  std::vector<double> imu_filter_weights_;
+  std::deque<Eigen::Vector3f> imu_filter_ang_window_;
+  std::deque<Eigen::Vector3f> imu_filter_lin_window_;
 
   int gicp_min_num_points_;
   int gicp_k_correspondences_;

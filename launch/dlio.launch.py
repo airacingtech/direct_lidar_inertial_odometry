@@ -19,9 +19,10 @@ def generate_launch_description():
     current_pkg = FindPackageShare('direct_lidar_inertial_odometry')
 
     # Set default arguments
-    rviz = LaunchConfiguration('rviz', default='false')
-    pointcloud_topic = LaunchConfiguration('pointcloud_topic', default='points_raw')
-    imu_topic = LaunchConfiguration('imu_topic', default='imu_raw')
+    rviz = LaunchConfiguration('rviz', default='true')
+    pointcloud_topic = LaunchConfiguration('pointcloud_topic', default='/luminar_front/points')
+    imu_topic = LaunchConfiguration('imu_topic', default='/gps_bot/imu')
+    gps_odom_topic = LaunchConfiguration('gps_odom_topic', default='/gps_bot/odom')
 
     # Define arguments
     declare_rviz_arg = DeclareLaunchArgument(
@@ -38,6 +39,11 @@ def generate_launch_description():
         'imu_topic',
         default_value=imu_topic,
         description='IMU topic name'
+    )
+    declare_gps_odom_topic_arg = DeclareLaunchArgument(
+        'gps_odom_topic',
+        default_value=gps_odom_topic,
+        description='GPS odometry topic shown in RViz'
     )
 
     # Load parameters
@@ -73,6 +79,21 @@ def generate_launch_description():
         ],
     )
 
+    odom_tf_labels_node = Node(
+        package='dlio_gps_comparison',
+        executable='odom_tf_labels_node',
+        name='odom_tf_labels_node',
+        output='screen',
+        parameters=[{
+            'gps_odom_topic': gps_odom_topic,
+            'dlio_odom_topic': '/dlio/odom_node/odom',
+            'parent_frame': 'odom',
+            'gps_child_frame': 'gps_odom_label',
+            'dlio_child_frame': 'dlio_odom_label',
+            'z_offset': 1.0,
+        }],
+    )
+
     # RViz node
     rviz_config_path = PathJoinSubstitution([current_pkg, 'launch', 'dlio.rviz'])
     rviz_node = Node(
@@ -80,6 +101,9 @@ def generate_launch_description():
         executable='rviz2',
         name='dlio_rviz',
         arguments=['-d', rviz_config_path],
+        remappings=[
+            ('/gps_bot/odom', gps_odom_topic),
+        ],
         output='screen',
         condition=IfCondition(LaunchConfiguration('rviz'))
     )
@@ -88,7 +112,9 @@ def generate_launch_description():
         declare_rviz_arg,
         declare_pointcloud_topic_arg,
         declare_imu_topic_arg,
+        declare_gps_odom_topic_arg,
         dlio_odom_node,
         dlio_map_node,
+        odom_tf_labels_node,
         rviz_node
     ])

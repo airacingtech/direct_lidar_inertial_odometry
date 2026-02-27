@@ -38,7 +38,7 @@ Visualization Manager:
     - Class: rviz_common/Group
       Displays:
         - Class: rviz_default_plugins/TF
-          Enabled: false
+          Enabled: true
           Filter (blacklist): ""
           Filter (whitelist): ""
           Frame Timeout: 9999
@@ -53,7 +53,7 @@ Visualization Manager:
           Tree:
             {}
           Update Interval: 0
-          Value: false
+          Value: true
         - Alpha: 1
           Class: rviz_default_plugins/Axes
           Enabled: true
@@ -102,7 +102,7 @@ Visualization Manager:
           Size (m): 0.009999999776482582
           Style: Points
           Topic: /dlio/odom_node/pointcloud/deskewed
-          Unreliable: false
+          Unreliable: true
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
@@ -132,7 +132,7 @@ Visualization Manager:
           Size (m): 0.009999999776482582
           Style: Points
           Topic: /dlio/odom_node/pointcloud/deskewed
-          Unreliable: false
+          Unreliable: true
           Use Fixed Frame: true
           Use rainbow: true
           Value: true
@@ -162,7 +162,7 @@ Visualization Manager:
           Size (m): 0.05000000074505806
           Style: Points
           Topic: /dlio/map_node/map
-          Unreliable: false
+          Unreliable: true
           Use Fixed Frame: true
           Use rainbow: true
           Value: false
@@ -187,9 +187,44 @@ Visualization Manager:
               Scale: 1
               Value: true
             Value: false
+          Enabled: true
+          Keep: 1
+          Name: GPS Bot Odom Pose
+          Position Tolerance: 0.009999999776482582
+          Queue Size: 1000
+          Shape:
+            Alpha: 1
+            Axes Length: 1
+            Axes Radius: 0.25
+            Color: 0; 255; 255
+            Head Length: 0.30000001192092896
+            Head Radius: 0.10000000149011612
+            Shaft Length: 1
+            Shaft Radius: 0.05000000074505806
+            Value: Axes
+          Topic: /gps_bot/odom
+          Unreliable: true
+          Value: true
+        - Angle Tolerance: 0.009999999776482582
+          Class: rviz_default_plugins/Odometry
+          Covariance:
+            Orientation:
+              Alpha: 0.5
+              Color: 255; 255; 127
+              Color Style: Unique
+              Frame: Local
+              Offset: 1
+              Scale: 1
+              Value: true
+            Position:
+              Alpha: 0.30000001192092896
+              Color: 204; 51; 204
+              Scale: 1
+              Value: true
+            Value: false
           Enabled: false
           Keep: 1
-          Name: Pose
+          Name: DLIO Odom Pose
           Position Tolerance: 0.009999999776482582
           Queue Size: 1000
           Shape:
@@ -203,7 +238,7 @@ Visualization Manager:
             Shaft Radius: 0.05000000074505806
             Value: Axes
           Topic: /dlio/odom_node/odom
-          Unreliable: false
+          Unreliable: true
           Value: false
         - Alpha: 1
           Arrow Length: 0.30000001192092896
@@ -220,7 +255,7 @@ Visualization Manager:
           Shaft Radius: 0.009999999776482582
           Shape: Axes
           Topic: /dlio/odom_node/keyframes
-          Unreliable: false
+          Unreliable: true
           Value: false
         - Alpha: 1
           Buffer Length: 1
@@ -244,7 +279,7 @@ Visualization Manager:
           Shaft Diameter: 0.10000000149011612
           Shaft Length: 0.10000000149011612
           Topic: /dlio/odom_node/path
-          Unreliable: false
+          Unreliable: true
           Value: true
       Enabled: true
       Name: Odometry

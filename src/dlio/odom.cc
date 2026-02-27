@@ -14,6 +14,11 @@
 #include "dlio/utils.h"
 
 #include <queue>
+#include <algorithm>
+#include <cmath>
+#include <numeric>
+#include <utility>
+#include <vector>
 
 #include "rclcpp/qos.hpp"
 
@@ -34,7 +39,8 @@ dlio::OdomNode::OdomNode() : Node("dlio_odom_node") {
   this->lidar_cb_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
   auto lidar_sub_opt = rclcpp::SubscriptionOptions();
   lidar_sub_opt.callback_group = this->lidar_cb_group;
-  this->lidar_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>("pointcloud", 1,
+  // Use sensor-data QoS so best-effort lidar publishers are compatible.
+  this->lidar_sub = this->create_subscription<sensor_msgs::msg::PointCloud2>("pointcloud", rclcpp::SensorDataQoS(),
       std::bind(&dlio::OdomNode::callbackPointCloud, this, std::placeholders::_1), lidar_sub_opt);
 
   this->imu_cb_group = this->create_callback_group(rclcpp::CallbackGroupType::MutuallyExclusive);
@@ -265,6 +271,33 @@ void dlio::OdomNode::getParams() {
   dlio::declare_param(this, "imu/calibration", this->imu_calibrate_, true);
   dlio::declare_param(this, "imu/intrinsics/accel/bias", prior_accel_bias, accel_default);
   dlio::declare_param(this, "imu/intrinsics/gyro/bias", prior_gyro_bias, gyro_default);
+  dlio::declare_param(this, "imu/filter/enable", this->imu_filter_enable_, true);
+  dlio::declare_param(this, "imu/filter/window", this->imu_filter_window_size_, 5);
+  std::vector<double> imu_filter_weights_default{1.0, 2.0, 4.0, 2.0, 1.0};
+  dlio::declare_param(this, "imu/filter/weights", this->imu_filter_weights_, imu_filter_weights_default);
+  if (this->imu_filter_window_size_ < 1) {
+    RCLCPP_WARN(this->get_logger(), "IMU filter window must be >=1. Using 1.");
+    this->imu_filter_window_size_ = 1;
+  }
+  if (this->imu_filter_window_size_ % 2 == 0) {
+    RCLCPP_WARN(this->get_logger(), "IMU filter window must be odd. Incrementing to %d.",
+                this->imu_filter_window_size_ + 1);
+    this->imu_filter_window_size_ += 1;
+  }
+  if (this->imu_filter_weights_.size() != static_cast<size_t>(this->imu_filter_window_size_)) {
+    RCLCPP_WARN(this->get_logger(),
+                "IMU filter weights size (%zu) != window size (%d). Regenerating triangular weights.",
+                this->imu_filter_weights_.size(), this->imu_filter_window_size_);
+    this->imu_filter_weights_ = dlio::OdomNode::buildTriangularWeights(
+        static_cast<size_t>(this->imu_filter_window_size_));
+  }
+  bool imu_weights_valid = std::all_of(this->imu_filter_weights_.begin(), this->imu_filter_weights_.end(),
+                                       [](double w) { return w > 0.0; });
+  if (!imu_weights_valid) {
+    RCLCPP_WARN(this->get_logger(), "IMU filter weights must be positive. Regenerating triangular weights.");
+    this->imu_filter_weights_ = dlio::OdomNode::buildTriangularWeights(
+        static_cast<size_t>(this->imu_filter_window_size_));
+  }
 
   // scale-misalignment matrix
   std::vector<double> imu_sm_default{1., 0., 0., 0., 1., 0., 0., 0., 1.};
@@ -1379,15 +1412,12 @@ sensor_msgs::msg::Imu::SharedPtr dlio::OdomNode::transformImu(const sensor_msgs:
   if (dt == 0) { dt = 1.0/200.0; }
 
   // Transform angular velocity (will be the same on a rigid body, so just rotate to ROS convention)
-  Eigen::Vector3f ang_vel(imu_raw->angular_velocity.x,
-                          imu_raw->angular_velocity.y,
-                          imu_raw->angular_velocity.z);
+  constexpr double kDeg2Rad = 0.017453292519943295;  // pi/180
+  Eigen::Vector3f ang_vel(static_cast<float>(imu_raw->angular_velocity.x * kDeg2Rad),
+                          static_cast<float>(imu_raw->angular_velocity.y * kDeg2Rad),
+                          static_cast<float>(imu_raw->angular_velocity.z * kDeg2Rad));
 
   Eigen::Vector3f ang_vel_cg = this->extrinsics.baselink2imu.R * ang_vel;
-
-  imu->angular_velocity.x = ang_vel_cg[0];
-  imu->angular_velocity.y = ang_vel_cg[1];
-  imu->angular_velocity.z = ang_vel_cg[2];
 
   static Eigen::Vector3f ang_vel_cg_prev = ang_vel_cg;
 
@@ -1398,11 +1428,20 @@ sensor_msgs::msg::Imu::SharedPtr dlio::OdomNode::transformImu(const sensor_msgs:
 
   Eigen::Vector3f lin_accel_cg = this->extrinsics.baselink2imu.R * lin_accel;
 
+  if (this->imu_filter_enable_) {
+    ang_vel_cg = this->filterImuMeasurement(this->imu_filter_ang_window_, ang_vel_cg);
+    lin_accel_cg = this->filterImuMeasurement(this->imu_filter_lin_window_, lin_accel_cg);
+  }
+
   lin_accel_cg = lin_accel_cg
                  + ((ang_vel_cg - ang_vel_cg_prev) / dt).cross(-this->extrinsics.baselink2imu.t)
                  + ang_vel_cg.cross(ang_vel_cg.cross(-this->extrinsics.baselink2imu.t));
 
   ang_vel_cg_prev = ang_vel_cg;
+
+  imu->angular_velocity.x = ang_vel_cg[0];
+  imu->angular_velocity.y = ang_vel_cg[1];
+  imu->angular_velocity.z = ang_vel_cg[2];
 
   imu->linear_acceleration.x = lin_accel_cg[0];
   imu->linear_acceleration.y = lin_accel_cg[1];
@@ -1410,6 +1449,84 @@ sensor_msgs::msg::Imu::SharedPtr dlio::OdomNode::transformImu(const sensor_msgs:
 
   return imu;
 
+}
+
+Eigen::Vector3f dlio::OdomNode::filterImuMeasurement(std::deque<Eigen::Vector3f>& window,
+                                                      const Eigen::Vector3f& sample) {
+  window.push_back(sample);
+  if (window.size() > static_cast<size_t>(this->imu_filter_window_size_)) {
+    window.pop_front();
+  }
+
+  if (window.empty()) {
+    return sample;
+  }
+
+  const std::vector<double>* weights = nullptr;
+  std::vector<double> temp_weights;
+  if (window.size() == this->imu_filter_weights_.size()) {
+    weights = &this->imu_filter_weights_;
+  } else {
+    temp_weights = dlio::OdomNode::buildTriangularWeights(window.size());
+    weights = &temp_weights;
+  }
+
+  Eigen::Vector3f filtered = sample;
+  for (int axis = 0; axis < 3; ++axis) {
+    std::vector<float> values(window.size());
+    for (size_t i = 0; i < window.size(); ++i) {
+      values[i] = window[i][axis];
+    }
+    filtered[axis] = dlio::OdomNode::weightedMedian(values, *weights);
+  }
+
+  return filtered;
+}
+
+float dlio::OdomNode::weightedMedian(const std::vector<float>& values,
+                                     const std::vector<double>& weights) {
+  if (values.empty()) {
+    return 0.0f;
+  }
+
+  size_t n = std::min(values.size(), weights.size());
+  std::vector<std::pair<float, double>> data(n);
+  double total_weight = 0.0;
+  for (size_t i = 0; i < n; ++i) {
+    double w = std::max(weights[i], 0.0);
+    data[i] = {values[i], w};
+    total_weight += w;
+  }
+
+  if (total_weight <= 0.0) {
+    return values.back();
+  }
+
+  std::sort(data.begin(), data.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+  double cumulative = 0.0;
+  double threshold = total_weight * 0.5;
+  for (const auto& entry : data) {
+    cumulative += entry.second;
+    if (cumulative >= threshold) {
+      return entry.first;
+    }
+  }
+
+  return data.back().first;
+}
+
+std::vector<double> dlio::OdomNode::buildTriangularWeights(size_t window_size) {
+  if (window_size == 0) {
+    return {};
+  }
+  std::vector<double> weights(window_size, 1.0);
+  const int mid = static_cast<int>(window_size / 2);
+  for (size_t i = 0; i < window_size; ++i) {
+    weights[i] = static_cast<double>(window_size - std::abs(static_cast<int>(i) - mid));
+  }
+  return weights;
 }
 
 void dlio::OdomNode::computeMetrics() {
